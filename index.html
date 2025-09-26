@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WeatherSim — Weather Dashboard</title>
+
+  <!-- Bootstrap & Google Font -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- jsPDF for report download -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Local CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- animation overlay -->
+  <div id="weatherAnimation" class="pointer-events-none"></div>
+
+  <!-- AUTH OVERLAY -->
+  <div id="authOverlay" class="auth-overlay d-none">
+    <div class="auth-graphics">
+      <span class="orb orb1"></span>
+      <span class="orb orb2"></span>
+      <span class="orb orb3"></span>
+      <span class="orb orb4"></span>
+    </div>
+    <div class="auth-center">
+      <div class="text-center mb-3">
+        <span class="logo-glass me-2"><img src="images/logo.jpg" alt="logo" width="44"></span>
+      </div>
+      <h2 class="auth-title mb-2">Welcome to WeatherSim</h2>
+      <p class="auth-subtitle mb-4">Sign up or sign in to continue</p>
+      <div class="auth-card-dark p-4">
+        <ul class="nav nav-pills mb-3" id="authTabs">
+          <li class="nav-item"><button class="nav-link active" id="tabSignup">Sign Up</button></li>
+          <li class="nav-item"><button class="nav-link" id="tabSignin">Sign In</button></li>
+        </ul>
+        <div id="signupForm">
+          <div class="mb-2"><input id="suName" type="text" class="form-control form-control-dark" placeholder="Full name"></div>
+          <div class="mb-2"><input id="suEmail" type="email" class="form-control form-control-dark" placeholder="Email"></div>
+          <div class="mb-3"><input id="suPass" type="password" class="form-control form-control-dark" placeholder="Password"></div>
+          <button id="signupBtn" class="btn btn-primary w-100">Create Account</button>
+        </div>
+        <div id="signinForm" class="d-none">
+          <div class="mb-2"><input id="siEmail" type="email" class="form-control form-control-dark" placeholder="Email"></div>
+          <div class="mb-3"><input id="siPass" type="password" class="form-control form-control-dark" placeholder="Password"></div>
+          <button id="signinBtn" class="btn btn-primary w-100">Sign In</button>
+        </div>
+      </div>
+      <p class="text-secondary small mt-3 mb-0">By continuing you agree to the demo terms.</p>
+    </div>
+  </div>
+
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm glass-nav">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="#">
+        <span class="logo-glass me-2"><img src="images/logo.jpg" alt="logo" width="40"></span>
+        WeatherSim
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div id="navMenu" class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto align-items-lg-center">
+          <li class="nav-item"><a class="nav-link active" href="#">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="#forecastSection">Forecast</a></li>
+          <li class="nav-item"><a class="nav-link" href="#comparisonSection">Compare</a></li>
+          <li class="nav-item"><a class="nav-link" href="#aboutSection">About</a></li>
+          <li class="nav-item ms-lg-3">
+            <button id="themeToggle" class="btn btn-outline-light btn-sm">Light Mode</button>
+          </li>
+          <li class="nav-item ms-lg-2">
+            <button id="signOutBtn" class="btn btn-outline-light btn-sm">Sign Out</button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- WELCOME HERO -->
+  <section id="welcome" class="vh-75 d-flex flex-column justify-content-center align-items-center text-center px-3">
+    <span class="logo-glass mb-3"><img src="images/logo.jpg" alt="App Logo" width="120"></span>
+    <h1 class="display-5 fw-bold">Welcome to WeatherSim</h1>
+    <p class="lead text-white mb-3">Simulate weather, view hourly & 5-day forecasts, compare cities, and explore UI features — powered by live API.</p>
+
+    <div class="input-group w-50 mx-auto" style="max-width:640px;">
+      <input id="cityInputHome" type="text" class="form-control" placeholder="Type a city (e.g., London, New York, Tokyo)">
+      <button id="startSearchBtn" class="btn btn-primary">Start</button>
+    </div>
+  </section>
+
+  <!-- APP CONTENT (hidden until first search) -->
+  <main class="container mb-5 d-none" id="appContent">
+
+    <!-- SEARCH + HISTORY + CONTROLS -->
+    <div class="row mt-4 align-items-center g-2">
+      <div class="col-md-6">
+        <div class="mb-2 d-flex align-items-center gap-2">
+          <button id="historyToggle" class="btn btn-outline-light btn-sm">See History</button>
+          <div id="searchHistory" class="history-dropdown d-none"></div>
+        </div>
+        <div class="input-group">
+          <input id="cityInput" type="text" class="form-control" placeholder="Enter city">
+          <button id="searchBtn" class="btn btn-primary">Search</button>
+        </div>
+      </div>
+
+      <div class="col-md-6 d-flex justify-content-end gap-2">
+        <button id="unitToggle" class="btn btn-primary">Show °F</button>
+        <button id="geoBtn" class="btn btn-primary">Use My Location</button>
+        <button id="downloadBtn" class="btn btn-primary">Download Report</button>
+      </div>
+    </div>
+
+    <!-- HERO WEATHER -->
+    <div id="heroContainer" class="mt-4 transition-fade">
+      <div id="hero" class="p-4 rounded-3 glass text-center">
+        <h2 id="cityName" class="fw-bold">--</h2>
+        <img id="heroIcon" alt="icon" width="100" src="images/sunny_icon.jpg">
+        <p id="heroTemp" class="fs-3 fw-semibold mt-2">-- °C</p>
+        <p id="heroExtra" class="mb-0 text-white">Wind: -- | Humidity: -- | UV: --</p>
+      </div>
+      <div id="heroSkeleton" class="p-4 rounded-3 glass skeleton d-none">
+        <div class="skeleton-line skeleton-title w-50 mx-auto mb-3"></div>
+        <div class="skeleton-circle mx-auto mb-3"></div>
+        <div class="skeleton-line w-25 mx-auto mb-2"></div>
+        <div class="skeleton-line w-75 mx-auto"></div>
+      </div>
+    </div>
+
+    <!-- DRESSING ADVICE -->
+    <div id="advice" class="mt-3 transition-fade"></div>
+
+    <!-- HOURLY -->
+    <section class="mt-4 transition-fade">
+      <h5 class="mb-2">Next 24 Hours</h5>
+      <div id="hourlyForecast" class="d-flex overflow-auto py-2"></div>
+      <div id="hourlySkeleton" class="d-flex overflow-auto py-2 d-none">
+        <div class="skeleton-card me-2"></div>
+        <div class="skeleton-card me-2"></div>
+        <div class="skeleton-card me-2"></div>
+        <div class="skeleton-card me-2"></div>
+        <div class="skeleton-card me-2"></div>
+        <div class="skeleton-card me-2"></div>
+      </div>
+    </section>
+
+    <!-- TEMP CHART -->
+    <section class="mt-4 transition-fade">
+      <h5 class="mb-2">Temperature Trend</h5>
+      <div class="card p-3 glass">
+        <canvas id="tempChart"></canvas>
+      </div>
+    </section>
+
+    <!-- MAP & PLACES -->
+    <section class="mt-4 transition-fade">
+      <h5 class="mb-2">Map & Places</h5>
+      <div class="card p-3 map-card">
+        <div class="row g-2 align-items-center mb-3">
+          <div class="col-md-5"><input id="placeSearch" class="form-control" type="text" placeholder="Search a place (city, landmark)"></div>
+          <div class="col-md-3"><input id="latInput" class="form-control" type="text" placeholder="Latitude" readonly></div>
+          <div class="col-md-3"><input id="lonInput" class="form-control" type="text" placeholder="Longitude" readonly></div>
+          <div class="col-md-1 text-end"><button id="useCoordsBtn" class="btn btn-primary w-100">Use</button></div>
+        </div>
+        <div id="map" class="map-white"></div>
+      </div>
+    </section>
+
+    <!-- 5-DAY FORECAST -->
+    <section id="forecastSection" class="mt-4 transition-fade">
+      <h5 class="mb-2">5-Day Forecast</h5>
+      <div id="forecast" class="row gy-3"></div>
+      <div id="forecastSkeleton" class="row gy-3 d-none">
+        <div class="col-6 col-md-2"><div class="skeleton-tile"></div></div>
+        <div class="col-6 col-md-2"><div class="skeleton-tile"></div></div>
+        <div class="col-6 col-md-2"><div class="skeleton-tile"></div></div>
+        <div class="col-6 col-md-2"><div class="skeleton-tile"></div></div>
+        <div class="col-6 col-md-2"><div class="skeleton-tile"></div></div>
+        <div class="col-6 col-md-2"><div class="skeleton-tile"></div></div>
+      </div>
+    </section>
+
+    <!-- COMPARISON -->
+    <section id="comparisonSection" class="mt-4 transition-fade">
+      <h5 class="mb-2">Compare Cities</h5>
+      <div class="card p-3 glass mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-5">
+            <input id="compareCityA" class="form-control" type="text" placeholder="Enter first city">
+          </div>
+          <div class="col-md-5">
+            <input id="compareCityB" class="form-control" type="text" placeholder="Enter second city">
+          </div>
+          <div class="col-md-2 text-end">
+            <button id="compareBtn" class="btn btn-success">Compare</button>
+          </div>
+        </div>
+        <canvas id="comparisonChart" class="mt-3"></canvas>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section id="aboutSection" class="mt-4">
+      <h6>About</h6>
+      <p class="text-light-strong">This simulator uses live API data to provide accurate weather forecasts. All UI features are fully interactive and professional. Enjoy hourly and 5-day outlooks, compare cities side-by-side, switch between °C/°F, and experience subtle UI animations and a theme toggle. Your recent searches are saved for quick access.</p>
+      <ul class="text-light-strong mb-0">
+        <li>Live weather powered by OpenWeather.</li>
+        <li>Interactive charts for trends and comparisons.</li>
+        <li>Mobile-friendly, accessible design with keyboard shortcuts.</li>
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- SITE FOOTER -->
+  <footer class="site-footer mt-5">
+    <div class="container py-4">
+      <div class="row gy-4">
+        <div class="col-12 col-md-4">
+          <div class="d-flex align-items-center mb-1 small-footer-logo">
+            <span class="logo-glass me-2"><img src="images/logo.jpg" alt="logo" width="28"></span>
+            <strong class="fs-6">WeatherSim</strong>
+          </div>
+          <p class="mb-0 text-light-strong small">A modern, educational weather dashboard showcasing clean UI and live data.</p>
+        </div>
+        <div class="col-6 col-md-4">
+          <h6 class="text-light mb-2 small">Explore</h6>
+          <ul class="list-unstyled small footer-links small">
+            <li><a href="#welcome">Home</a></li>
+            <li><a href="#forecastSection">Forecast</a></li>
+            <li><a href="#comparisonSection">Compare</a></li>
+            <li><a href="#aboutSection">About</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-md-4">
+          <h6 class="text-light mb-2 small">Contact</h6>
+          <ul class="list-unstyled small text-light-strong mb-0">
+            <li>Email: contact@weathersim.in</li>
+            <li>API: OpenWeather</li>
+            <li>Theme: Light/Dark with glass UI</li>
+          </ul>
+        </div>
+      </div>
+      <hr class="footer-sep my-4">
+      <div class="d-flex flex-column flex-md-row justify-content-between small text-secondary">
+        <span>© <span id="footerYear">2025</span> WeatherSim. All rights reserved.</span>
+        <span>Made for UI/UX practice.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Local JS -->
+  <script src="script.js"></script>
+</body>
+</html>
+
